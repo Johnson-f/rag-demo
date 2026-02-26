@@ -55,12 +55,23 @@ impl TradeStreamService {
         message: String,
         context_limit: usize,
     ) -> Result<Pin<Box<dyn Stream<Item = StreamChunk> + Send>>> {
-        // Step 1 & 2: Search for relevant trades using vector similarity
-        let relevant_trades = self
-            .vector_service
-            .search_similar(&message, context_limit)
-            .await
-            .context("Failed to search for relevant trades")?;
+        // Step 1 & 2: Search for relevant trades using different strategies
+        let relevant_trades = if self.is_symbol_query(&message) {
+            // Symbol-specific query: use semantic search (it will match the symbol in embeddings)
+            self.vector_service
+                .search_similar(&message, context_limit)
+                .await
+                .context("Failed to search for relevant trades")?
+        } else if self.is_temporal_query(&message) {
+            // Fetch most recent trades from database (chronological)
+            self.get_recent_trades_from_db(context_limit).await?
+        } else {
+            // Use semantic search (meaning-based)
+            self.vector_service
+                .search_similar(&message, context_limit)
+                .await
+                .context("Failed to search for relevant trades")?
+        };
 
         // Step 3: Build the prompt with system instructions + context + user message
         let system_prompt = self.build_system_prompt();
@@ -173,5 +184,90 @@ The trade data includes:
         }
 
         context
+    }
+
+    /// Check if the query is asking about a specific stock symbol
+    fn is_symbol_query(&self, query: &str) -> bool {
+        let query_upper = query.to_uppercase();
+        
+        // Look for patterns like "AAPL trades", "my GH trades", "tell me about TSLA"
+        // Common stock symbols are 1-5 uppercase letters
+        let symbol_patterns = [
+            r"\b[A-Z]{1,5}\s+trade",
+            r"about\s+[A-Z]{1,5}",
+            r"my\s+[A-Z]{1,5}\s+trade",
+            r"symbol\s+[A-Z]{1,5}",
+            r"stock\s+[A-Z]{1,5}",
+        ];
+        
+        // Check if query contains a potential stock symbol pattern
+        for pattern in &symbol_patterns {
+            if regex::Regex::new(pattern)
+                .map(|re| re.is_match(&query_upper))
+                .unwrap_or(false)
+            {
+                return true;
+            }
+        }
+        
+        false
+    }
+
+    /// Check if the query is asking for recent/last trades (temporal query)
+    fn is_temporal_query(&self, query: &str) -> bool {
+        let query_lower = query.to_lowercase();
+        
+        // Don't treat as temporal if it's asking about a specific symbol
+        if self.is_symbol_query(query) {
+            return false;
+        }
+        
+        let temporal_keywords = [
+            "last", "recent", "latest", "newest", "most recent",
+            "past", "previous", "all trades", "show me"
+        ];
+        
+        temporal_keywords.iter().any(|keyword| query_lower.contains(keyword))
+    }
+
+    /// Fetch recent trades directly from database (ordered by date)
+    async fn get_recent_trades_from_db(&self, limit: usize) -> Result<Vec<TradeDocument>> {
+        use crate::models::Trade;
+        
+        // Fetch all trades from database
+        let trades = Trade::get_all(&self.db)
+            .await
+            .context("Failed to fetch trades from database")?;
+        
+        // Sort by created_at descending (most recent first) and take limit
+        let mut sorted_trades = trades;
+        sorted_trades.sort_by(|a, b| {
+            b.created_at.as_ref().unwrap_or(&String::new())
+                .cmp(a.created_at.as_ref().unwrap_or(&String::new()))
+        });
+        
+        // Convert to TradeDocument and take limit
+        let trade_docs: Vec<TradeDocument> = sorted_trades
+            .iter()
+            .take(limit)
+            .map(|trade| TradeDocument {
+                trade_id: trade.trade_id.clone(),
+                stock_symbol: trade.stock_symbol.clone(),
+                stock_name: trade.stock_name.clone(),
+                entry_price: trade.entry_price,
+                exit_price: trade.exit_price,
+                trade_type: trade.trade_type.as_str().to_string(),
+                stop_loss: trade.stop_loss,
+                risk_reward: trade.risk_reward,
+                profit: trade.profit,
+                profit_in_percent: trade.profit_in_percent,
+                initial_target: trade.initial_target,
+                notes: trade.notes.clone(),
+                trade_summary: trade.trade_summary.clone().unwrap_or_default(),
+                created_at: trade.created_at.clone().unwrap_or_default(),
+            })
+            .collect();
+        
+        Ok(trade_docs)
     }
 }

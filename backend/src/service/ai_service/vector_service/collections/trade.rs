@@ -136,12 +136,44 @@ impl TradeVectorService {
         payload.insert("entry_price".to_string(), doc.entry_price.into());
         payload.insert("exit_price".to_string(), doc.exit_price.into());
         payload.insert("trade_type".to_string(), doc.trade_type.clone().into());
-        payload.insert("stop_loss".to_string(), json!(doc.stop_loss).to_string().into());
-        payload.insert("risk_reward".to_string(), json!(doc.risk_reward).to_string().into());
-        payload.insert("profit".to_string(), json!(doc.profit).to_string().into());
-        payload.insert("profit_in_percent".to_string(), json!(doc.profit_in_percent).to_string().into());
-        payload.insert("initial_target".to_string(), json!(doc.initial_target).to_string().into());
-        payload.insert("notes".to_string(), json!(doc.notes).to_string().into());
+        
+        // Store optional numeric fields properly - use the value directly if present, null if not
+        if let Some(sl) = doc.stop_loss {
+            payload.insert("stop_loss".to_string(), sl.into());
+        } else {
+            payload.insert("stop_loss".to_string(), qdrant_client::qdrant::Value::from(serde_json::Value::Null));
+        }
+        
+        if let Some(rr) = doc.risk_reward {
+            payload.insert("risk_reward".to_string(), rr.into());
+        } else {
+            payload.insert("risk_reward".to_string(), qdrant_client::qdrant::Value::from(serde_json::Value::Null));
+        }
+        
+        if let Some(p) = doc.profit {
+            payload.insert("profit".to_string(), p.into());
+        } else {
+            payload.insert("profit".to_string(), qdrant_client::qdrant::Value::from(serde_json::Value::Null));
+        }
+        
+        if let Some(pp) = doc.profit_in_percent {
+            payload.insert("profit_in_percent".to_string(), pp.into());
+        } else {
+            payload.insert("profit_in_percent".to_string(), qdrant_client::qdrant::Value::from(serde_json::Value::Null));
+        }
+        
+        if let Some(it) = doc.initial_target {
+            payload.insert("initial_target".to_string(), it.into());
+        } else {
+            payload.insert("initial_target".to_string(), qdrant_client::qdrant::Value::from(serde_json::Value::Null));
+        }
+        
+        if let Some(n) = &doc.notes {
+            payload.insert("notes".to_string(), n.clone().into());
+        } else {
+            payload.insert("notes".to_string(), qdrant_client::qdrant::Value::from(serde_json::Value::Null));
+        }
+        
         payload.insert("trade_summary".to_string(), doc.trade_summary.clone().into());
         payload.insert("created_at".to_string(), doc.created_at.clone().into());
 

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use libsql::params;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -216,20 +217,20 @@ impl Trade {
             .await
             .context("Failed to prepare insert statement")?;
 
-        stmt.execute([
-            &self.trade_id,
-            &self.stock_symbol,
-            &self.stock_name,
-            &self.entry_price.to_string(),
-            &self.exit_price.to_string(),
+        stmt.execute(params![
+            self.trade_id.clone(),
+            self.stock_symbol.clone(),
+            self.stock_name.clone(),
+            self.entry_price,
+            self.exit_price,
             self.trade_type.as_str(),
-            &self.stop_loss.map(|v| v.to_string()).unwrap_or_default(),
-            &self.risk_reward.map(|v| v.to_string()).unwrap_or_default(),
-            &self.profit.map(|v| v.to_string()).unwrap_or_default(),
-            &self.profit_in_percent.map(|v| v.to_string()).unwrap_or_default(),
-            &self.initial_target.map(|v| v.to_string()).unwrap_or_default(),
-            &self.notes.as_deref().unwrap_or(""),
-            &self.trade_summary.as_deref().unwrap_or(""),
+            self.stop_loss,
+            self.risk_reward,
+            self.profit,
+            self.profit_in_percent,
+            self.initial_target,
+            self.notes.clone(),
+            self.trade_summary.clone(),
         ])
         .await
         .context("Failed to insert trade")?;
@@ -332,20 +333,20 @@ impl Trade {
             .await
             .context("Failed to prepare update statement")?;
 
-        stmt.execute([
-            &self.stock_symbol,
-            &self.stock_name,
-            &self.entry_price.to_string(),
-            &self.exit_price.to_string(),
+        stmt.execute(params![
+            self.stock_symbol.clone(),
+            self.stock_name.clone(),
+            self.entry_price,
+            self.exit_price,
             self.trade_type.as_str(),
-            &self.stop_loss.map(|v| v.to_string()).unwrap_or_default(),
-            &self.risk_reward.map(|v| v.to_string()).unwrap_or_default(),
-            &self.profit.map(|v| v.to_string()).unwrap_or_default(),
-            &self.profit_in_percent.map(|v| v.to_string()).unwrap_or_default(),
-            &self.initial_target.map(|v| v.to_string()).unwrap_or_default(),
-            &self.notes.as_deref().unwrap_or(""),
-            &self.trade_summary.as_deref().unwrap_or(""),
-            &self.trade_id,
+            self.stop_loss,
+            self.risk_reward,
+            self.profit,
+            self.profit_in_percent,
+            self.initial_target,
+            self.notes.clone(),
+            self.trade_summary.clone(),
+            self.trade_id.clone(),
         ])
         .await
         .context("Failed to update trade")?;

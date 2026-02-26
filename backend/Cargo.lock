@@ -467,6 +467,7 @@ dependencies = [
  "futures",
  "libsql",
  "qdrant-client",
+ "regex",
  "reqwest 0.12.28",
  "rig-core",
  "rig-qdrant",

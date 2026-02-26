@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTradeStream } from '@/lib/hooks/useTradeStream';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Markdown } from '@/components/ui/markdown';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 /**
  * Enhanced streaming chat component with markdown rendering and copy functionality
@@ -12,6 +13,9 @@ import { Markdown } from '@/components/ui/markdown';
 export function Chat() {
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
+  const [thinkingOpen, setThinkingOpen] = useState(false);
+  const [thinking, setThinking] = useState('');
+  const [actualResponse, setActualResponse] = useState('');
   
   const { 
     sendMessage, 
@@ -24,6 +28,50 @@ export function Chat() {
     autoConnect: true,
     onError: (err) => console.error('Stream error:', err),
   });
+
+  // Parse response to separate thinking from actual response
+  useEffect(() => {
+    if (!response) {
+      setThinking('');
+      setActualResponse('');
+      return;
+    }
+
+    // Look for common thinking patterns in the response
+    // The AI might start with reasoning before the actual formatted response
+    const lines = response.split('\n');
+    let thinkingEndIndex = -1;
+    
+    // Detect where thinking ends - look for markdown headers or structured content
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      // If we find a markdown header (##) or a clear section start, that's likely the actual response
+      if (line.startsWith('##') || line.startsWith('# ') || 
+          line.match(/^(Trade-by-trade|Portfolio|Summary|Analysis)/i)) {
+        thinkingEndIndex = i;
+        break;
+      }
+    }
+
+    if (thinkingEndIndex > 0) {
+      // Found thinking section
+      const thinkingText = lines.slice(0, thinkingEndIndex).join('\n').trim();
+      const responseText = lines.slice(thinkingEndIndex).join('\n').trim();
+      
+      // Only set thinking if it's substantial (more than just a sentence)
+      if (thinkingText.length > 50) {
+        setThinking(thinkingText);
+        setActualResponse(responseText);
+      } else {
+        setThinking('');
+        setActualResponse(response);
+      }
+    } else {
+      // No clear thinking section detected
+      setThinking('');
+      setActualResponse(response);
+    }
+  }, [response]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,8 +208,38 @@ export function Chat() {
             </div>
           </div>
           
+          {/* Thinking Section - Collapsible */}
+          {thinking && (
+            <Collapsible open={thinkingOpen} onOpenChange={setThinkingOpen} className="mb-4">
+              <CollapsibleTrigger className="flex items-center gap-2 w-full p-3 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 transition-colors group">
+                <svg 
+                  className={`w-4 h-4 text-amber-600 transition-transform ${thinkingOpen ? 'rotate-90' : ''}`} 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <span className="text-sm font-medium text-amber-800">
+                  AI Thinking Process
+                </span>
+                <span className="ml-auto text-xs text-amber-600 group-hover:text-amber-700">
+                  {thinkingOpen ? 'Hide' : 'Show'}
+                </span>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2 p-4 bg-amber-50/50 rounded-lg border border-amber-100">
+                <div className="prose prose-sm max-w-none text-gray-700">
+                  <Markdown>{thinking}</Markdown>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+          
           <div className="relative">
-            <Markdown>{response}</Markdown>
+            <Markdown>{actualResponse || response}</Markdown>
             {isStreaming && (
               <div className="flex items-center gap-2 mt-4 text-sm text-gray-500">
                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
