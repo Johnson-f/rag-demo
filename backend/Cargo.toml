@@ -15,3 +15,11 @@ tracing-subscriber = "0.3"
 dotenvy = "0.15"
 actix-web = "4"
 actix-cors = "0.7"
+actix-ws = "0.4"
+rig-core = "0.31.0"
+rig-qdrant = "0.1.37"
+qdrant-client = "1.12"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+reqwest = { version = "0.12", features = ["json"] }
+rustls = { version = "0.23", default-features = false }
+futures = "0.3"
