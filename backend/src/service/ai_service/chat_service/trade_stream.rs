@@ -85,7 +85,7 @@ impl TradeStreamService {
         let agent = self
             .ai_client
             .client()
-            .agent("upstage/solar-pro-3:free")
+            .agent("nvidia/nemotron-3-nano-30b-a3b:free")
             .build();
 
         // Use rig's streaming prompt interface
