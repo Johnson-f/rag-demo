@@ -7,7 +7,7 @@ use actix_cors::Cors;
 use anyhow::Result;
 use service::database::{DatabaseClient, DatabaseConfig, SchemaManager};
 use service::ai_service::{TradeVectorService, TradeChatService};
-use service::ai_service::chat_service::TradeStreamService;
+use service::ai_service::chat_service::{TradeStreamService, MultiStepTradeAgent, StreamingMultiStepAgent};
 use routes::trade::AppState;
 use std::sync::Arc;
 
@@ -85,12 +85,42 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Create app state with database, vector service, chat service, and stream service
+    // Initialize multi-step agent
+    println!("Initializing multi-step agent...");
+    let multi_step_agent = match MultiStepTradeAgent::from_env(db.clone()).await {
+        Ok(agent) => {
+            println!("✓ Multi-step agent initialized successfully!");
+            agent
+        }
+        Err(e) => {
+            eprintln!("⚠ Warning: Failed to initialize multi-step agent: {}", e);
+            eprintln!("  The application will continue without multi-step analysis.");
+            return Err(e);
+        }
+    };
+
+    // Initialize streaming multi-step agent
+    println!("Initializing streaming multi-step agent...");
+    let streaming_multi_step_agent = match StreamingMultiStepAgent::from_env(db.clone()).await {
+        Ok(agent) => {
+            println!("✓ Streaming multi-step agent initialized successfully!");
+            agent
+        }
+        Err(e) => {
+            eprintln!("⚠ Warning: Failed to initialize streaming multi-step agent: {}", e);
+            eprintln!("  The application will continue without streaming multi-step analysis.");
+            return Err(e);
+        }
+    };
+
+    // Create app state with all services
     let app_state = web::Data::new(Arc::new(AppState {
         db,
         vector_service,
         chat_service,
         stream_service,
+        multi_step_agent,
+        streaming_multi_step_agent,
     }));
 
     // Start HTTP server

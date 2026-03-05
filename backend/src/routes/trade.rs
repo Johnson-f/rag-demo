@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::models::{CreateTradeInput, Trade};
 use crate::service::database::DatabaseClient;
 use crate::service::ai_service::{TradeVectorService, TradeChatService};
-use crate::service::ai_service::chat_service::TradeStreamService;
+use crate::service::ai_service::chat_service::{TradeStreamService, MultiStepTradeAgent, StreamingMultiStepAgent};
 
 /// Application state containing database and vector service clients
 pub struct AppState {
@@ -13,6 +13,8 @@ pub struct AppState {
     pub vector_service: TradeVectorService,
     pub chat_service: TradeChatService,
     pub stream_service: TradeStreamService,
+    pub multi_step_agent: MultiStepTradeAgent,
+    pub streaming_multi_step_agent: StreamingMultiStepAgent,
 }
 
 #[derive(Serialize)]
@@ -296,6 +298,38 @@ async fn get_portfolio_summary(data: web::Data<Arc<AppState>>) -> impl Responder
     }
 }
 
+/// POST /trades/analyze - Analyze trades using multi-step agent
+#[post("/trades/analyze")]
+async fn analyze_trades_multi_step(
+    data: web::Data<Arc<AppState>>,
+    request: web::Json<serde_json::Value>,
+) -> impl Responder {
+    let query = match request.get("query").and_then(|v| v.as_str()) {
+        Some(q) => q.to_string(),
+        None => {
+            return HttpResponse::BadRequest().json(ErrorResponse {
+                error: "Missing 'query' field".to_string(),
+            })
+        }
+    };
+
+    match data.multi_step_agent.execute(query).await {
+        Ok(state) => HttpResponse::Ok().json(serde_json::json!({
+            "query": state.user_query,
+            "query_type": state.query_type,
+            "trades_count": state.retrieved_trades.len(),
+            "analysis": state.analysis,
+            "trades": state.retrieved_trades,
+        })),
+        Err(e) => {
+            tracing::error!("Failed to execute multi-step analysis: {}", e);
+            HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("Failed to analyze trades: {}", e),
+            })
+        }
+    }
+}
+
 /// Configure trade routes
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(create_trade)
@@ -307,5 +341,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(search_trades)
         .service(get_trade_insights)
         .service(chat_about_trades)
-        .service(get_portfolio_summary);
+        .service(get_portfolio_summary)
+        .service(analyze_trades_multi_step);
 }

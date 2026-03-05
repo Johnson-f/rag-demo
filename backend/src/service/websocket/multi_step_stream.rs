@@ -1,5 +1,3 @@
-pub mod multi_step_stream;
-
 use actix_ws::{Message, MessageStream, Session};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -7,18 +5,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::routes::trade::AppState;
-use crate::service::ai_service::chat_service::StreamChunk;
+use crate::service::ai_service::chat_service::AnalysisEvent;
 
-/// WebSocket message types
+/// WebSocket message types for multi-step analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum WsMessage {
-    /// Client sends a chat message
-    Chat { message: String, context_limit: Option<usize> },
-    /// Server sends a text chunk
-    TextChunk { content: String },
-    /// Server sends completion signal
-    Complete { total_chunks: usize },
+pub enum MultiStepWsMessage {
+    /// Client sends an analysis request
+    Analyze { query: String },
+    /// Server sends an analysis event
+    Event { event: AnalysisEvent },
     /// Error message
     Error { error: String },
     /// Ping/Pong for keepalive
@@ -26,8 +22,8 @@ pub enum WsMessage {
     Pong,
 }
 
-/// WebSocket handler for trade chat streams
-pub struct TradeStreamWs {
+/// WebSocket handler for streaming multi-step analysis
+pub struct MultiStepStreamWs {
     /// Application state with services
     app_state: Arc<AppState>,
     /// WebSocket session
@@ -36,7 +32,7 @@ pub struct TradeStreamWs {
     msg_stream: MessageStream,
 }
 
-impl TradeStreamWs {
+impl MultiStepStreamWs {
     pub fn new(app_state: Arc<AppState>, session: Session, msg_stream: MessageStream) -> Self {
         Self {
             app_state,
@@ -74,7 +70,7 @@ impl TradeStreamWs {
                             
                             if let Err(e) = self.handle_text_message(text.to_string()).await {
                                 tracing::error!("Error handling message: {}", e);
-                                let error_msg = WsMessage::Error {
+                                let error_msg = MultiStepWsMessage::Error {
                                     error: format!("Failed to process message: {}", e),
                                 };
                                 let _ = self.send_message(error_msg).await;
@@ -113,15 +109,14 @@ impl TradeStreamWs {
     /// Handle incoming text message
     async fn handle_text_message(&mut self, text: String) -> Result<(), Box<dyn std::error::Error>> {
         // Parse incoming message
-        let ws_msg: WsMessage = serde_json::from_str(&text)?;
+        let ws_msg: MultiStepWsMessage = serde_json::from_str(&text)?;
 
         match ws_msg {
-            WsMessage::Chat { message, context_limit } => {
-                let limit = context_limit.unwrap_or(5);
-                self.handle_chat_message(message, limit).await?;
+            MultiStepWsMessage::Analyze { query } => {
+                self.handle_analyze_request(query).await?;
             }
-            WsMessage::Ping => {
-                let pong_msg = WsMessage::Pong;
+            MultiStepWsMessage::Ping => {
+                let pong_msg = MultiStepWsMessage::Pong;
                 self.send_message(pong_msg).await?;
             }
             _ => {
@@ -132,47 +127,27 @@ impl TradeStreamWs {
         Ok(())
     }
 
-    /// Handle chat message and stream response
-    async fn handle_chat_message(&mut self, message: String, context_limit: usize) -> Result<(), Box<dyn std::error::Error>> {
-        // Get the streaming response from the AI service
-        let mut stream = self.app_state.stream_service.stream_chat(message, context_limit).await?;
+    /// Handle analysis request and stream events
+    async fn handle_analyze_request(&mut self, query: String) -> Result<(), Box<dyn std::error::Error>> {
+        // Get the streaming multi-step agent
+        let mut event_rx = self.app_state
+            .streaming_multi_step_agent
+            .execute_stream(query)
+            .await?;
 
-        // Stream chunks to the client
-        while let Some(chunk) = stream.next().await {
-            match chunk {
-                StreamChunk::Text(text) => {
-                    if !text.is_empty() {
-                        let msg = WsMessage::TextChunk { content: text };
-                        self.send_message(msg).await?;
-                    }
-                }
-                StreamChunk::Done => {
-                    let complete_msg = WsMessage::Complete { total_chunks: 0 };
-                    self.send_message(complete_msg).await?;
-                    break;
-                }
-                StreamChunk::Error(error) => {
-                    let error_msg = WsMessage::Error { error };
-                    self.send_message(error_msg).await?;
-                    break;
-                }
-            }
+        // Stream events to the client
+        while let Some(event) = event_rx.recv().await {
+            let msg = MultiStepWsMessage::Event { event };
+            self.send_message(msg).await?;
         }
-
-        // Send completion signal
-        let complete_msg = WsMessage::Complete { total_chunks: 0 };
-        self.send_message(complete_msg).await?;
 
         Ok(())
     }
 
     /// Send a message to the client
-    async fn send_message(&mut self, msg: WsMessage) -> Result<(), Box<dyn std::error::Error>> {
+    async fn send_message(&mut self, msg: MultiStepWsMessage) -> Result<(), Box<dyn std::error::Error>> {
         let json = serde_json::to_string(&msg)?;
         self.session.text(json).await?;
         Ok(())
     }
 }
-
-
-pub use multi_step_stream::MultiStepStreamWs;

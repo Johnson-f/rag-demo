@@ -1,6 +1,6 @@
 # `src` Folder Purpose
 
-This `src` directory will host the Rust implementation of the LangGraph runtime.
+This `src` directory will host the LangGraph runtime.
 
 ## What will stay here
 - The current binary entrypoint (`main.rs`) for local experiments and bootstrap commands.

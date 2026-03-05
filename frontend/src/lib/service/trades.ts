@@ -8,6 +8,8 @@ import type {
   SearchQuery,
   InsightsRequest,
   InsightsResponse,
+  MultiStepAnalysisRequest,
+  MultiStepAnalysisResponse,
 } from '@/lib/types/trades';
 
 // Trade service functions
@@ -98,5 +100,20 @@ export const tradeService = {
       body: JSON.stringify(request),
     });
     return handleResponse<InsightsResponse>(response);
+  },
+
+  /**
+   * Analyze trades using multi-step agent (LangGraph-powered)
+   * This provides structured analysis with query classification and contextual retrieval
+   */
+  async analyzeMultiStep(request: MultiStepAnalysisRequest): Promise<MultiStepAnalysisResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/trades/analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+    return handleResponse<MultiStepAnalysisResponse>(response);
   },
 };

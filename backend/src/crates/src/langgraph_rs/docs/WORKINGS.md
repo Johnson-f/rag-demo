@@ -1,5 +1,5 @@
 ## LangGraph Rust -> Detailed Architecture Explanation
-The langgraph_rs module is a Rust rewrite of LangGraph's core runtime, implementing a Pregel-style superstep execution engine for stateful, graph-based AI agent workflows.
+The langgraph_rs module is a LangGraph's core runtime, implementing a Pregel-style superstep execution engine for stateful, graph-based AI agent workflows.
 
 Here's how it works:
 
@@ -18,6 +18,8 @@ The code module defines the fundamental graph abstractions without any provider-
 - Channels (core/channels)
 Channels are the state containers in the graph. They manage how data flows between nodes:
 "Channels are mailboxes with different rules on how they handle messages that nodes can read and write to for coordinating nodes in a graph."
+
+This is the agentic framework i created 
 
 **Basic Value Channels:**
 * **LastValue**: Stores the most recent value, accepts one update per step

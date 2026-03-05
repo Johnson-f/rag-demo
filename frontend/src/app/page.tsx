@@ -2,6 +2,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CreateTradeTab } from "@/components/trades/create-trade-tab";
 import { TradesListTab } from "@/components/trades/trades-list-tab";
 import { Chat } from "@/components/trades/chat";
+import { MultiStepChat } from "@/components/trades/multi-step-chat";
+import { StreamingMultiStepChat } from "@/components/trades/streaming-multi-step-chat";
 
 export default function Home() {
   return (
@@ -14,6 +16,16 @@ export default function Home() {
             <TabsTrigger value="list">Trades</TabsTrigger>
             <TabsTrigger value="create">Create Trade</TabsTrigger>
             <TabsTrigger value="insights">Ask Questions</TabsTrigger>
+            <TabsTrigger value="multi-step">
+              <span className="flex items-center gap-1">
+                🤖 Multi-Step
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="streaming">
+              <span className="flex items-center gap-1">
+                ⚡ Streaming
+              </span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="list" className="mt-6">
@@ -26,6 +38,14 @@ export default function Home() {
 
           <TabsContent value="insights" className="mt-6">
             <Chat />
+          </TabsContent>
+
+          <TabsContent value="multi-step" className="mt-6">
+            <MultiStepChat />
+          </TabsContent>
+
+          <TabsContent value="streaming" className="mt-6">
+            <StreamingMultiStepChat />
           </TabsContent>
         </Tabs>
       </main>

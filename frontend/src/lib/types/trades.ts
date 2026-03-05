@@ -63,6 +63,18 @@ export interface InsightsResponse {
   insights: string;
 }
 
+export interface MultiStepAnalysisRequest {
+  query: string;
+}
+
+export interface MultiStepAnalysisResponse {
+  query: string;
+  query_type: string | null;
+  trades_count: number;
+  analysis: string;
+  trades: TradeDocument[];
+}
+
 export interface ErrorResponse {
   error: string;
 }
